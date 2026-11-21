@@ -1,0 +1,8 @@
+mediapipe==0.10.14
+opencv-python>=4.8
+numpy<2
+pillow>=10.0
+arabic_reshaper>=3.0
+python-bidi>=0.4.2
+gTTS>=2.5
+pygame>=2.5

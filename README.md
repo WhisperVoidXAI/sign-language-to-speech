@@ -1,92 +1,170 @@
-# 🖐️ Sign to Speech — A Sign Language-to-Speech Conversion System
+# 🤟 Sign ➜ Speech Studio
+### نظام ذكاء اصطناعي يحوّل لغة الإشارة إلى صوت مسموع
 
-An artificial intelligence system that recognizes hand gestures via a webcam and converts them into spoken Arabic—built entirely using open-source tools, with no specialized hardware required.
+<div dir="rtl">
 
-![Python](https://img.shields.io/badge/Python-3.12-blue)
-![License](https://img.shields.io/badge/License-MIT-green)
-![OpenCV](https://img.shields.io/badge/OpenCV-MediaPipe-orange)
-
----
-
-## 💡 The Concept
-
-The goal is to build a "bridge" that helps deaf individuals communicate with those who do not know sign language. You perform a hand gesture in front of the camera; the system recognizes it, displays it on the screen, and speaks it aloud.
-
-> Note: This is a prototype that recognizes a set of gestures defined by the user; it is not a full-scale translation of a complete sign language.
+أرفع يدك بإشارة… فيتعرّف الكمبيوتر عليها وينطقها بصوت عربي.
+مشروع بسيط ومفتوح المصدر هدفه أن يكون **جسراً بين الصمّ والأشخاص الذين لا يعرفون لغة الإشارة**، ونقطة بداية لكل من يريد أن يتعلّم الرؤية الحاسوبية عملياً.
 
 ---
 
-## ⚙️ How It Works
+## ✨ ماذا يفعل المشروع؟
 
-1. **Hand Tracking:** The camera captures the hand, and MediaPipe maps it into 21 key points representing the joints.
-2. **Feature Extraction:** The key points are normalized so that the data remains independent of the hand's position or size within the frame.
-3. **Recognition:** A K-Nearest Neighbors (KNN) algorithm compares the gesture against the data the system has learned and identifies the closest match.
-4. **Speech Synthesis:** The name of the gesture is spoken in Arabic using gTTS (Google Text-to-Speech).
+- 📷 يتابع يدك مباشرة من الكاميرا.
+- ✋ يحدّد **21 نقطة** تمثّل مفاصل اليد.
+- 🧠 يتعرّف على الإشارة التي علّمته إياها.
+- 🔊 ينطق الكلمة بصوت عربي.
+- 🖥️ يعرض كل شيء في نافذة واحدة: الكاميرا + لوحة جانبية بالعربي.
 
-Key Advantage: There is no need for a massive dataset—the system **learns gestures directly from you** (requiring only a few dozen samples per gesture). ---
-
-## ✨ Features
-
-- A dynamic interface alongside the video feed, displaying the recognized sign, confidence score, and the list of signs.
-- Easy training of new signs directly from within the application window (no terminal input required).
-- Full support for the Arabic language (both in display and text-to-speech).
-- Works on any laptop with a webcam—no additional hardware required.
+الإشارات الجاهزة في الكود: **مرحبا، نعم، لا، شكراً، أحبك، من فضلك، آسف، وداعاً** (وتستطيع تغييرها بسهولة).
 
 ---
 
-## 🛠️ Requirements
+## 🧠 كيف يعمل؟ (بشكل مبسّط)
 
-```bash
-pip install opencv-python mediapipe numpy pillow arabic_reshaper python-bidi gTTS pygame
+```
+الكاميرا ➜ MediaPipe Hands ➜ 21 نقطة ➜ تحويلها لأرقام ➜ مقارنة بالأمثلة (KNN) ➜ الكلمة ➜ صوت (gTTS)
 ```
 
-> Requires Python 3.12 (or an earlier version compatible with MediaPipe) and an internet connection for audio generation via gTTS.
+**1) تتبّع اليد**
+مكتبة **MediaPipe Hands** من Google تكتشف اليد في كل إطار وتعطي 21 نقطة (رسغ + 4 نقاط لكل إصبع)، لكل نقطة إحداثيات `x, y, z`.
+
+**2) تحويل اليد إلى "بصمة" رقمية**
+الدالة `landmarks_to_vector` تجعل الرسغ نقطة الأصل، ثم تقسم على حجم اليد.
+النتيجة: نفس الإشارة تعطي نفس الأرقام تقريباً **مهما كان مكان يدك أو بُعدها عن الكاميرا**.
+
+**3) التعرّف على الإشارة (KNN)**
+عندما تعلّم النظام إشارة، يحفظ **40 مثالاً** لها في الملف `signs.json`.
+عند التعرّف، يقارن يدك الحالية بكل الأمثلة، ويأخذ أقرب **5** منها، والإشارة الأكثر تكراراً بينها هي النتيجة.
+ويقارن أيضاً مع **صورة معكوسة** لليد، فتعمل الإشارة باليد اليمنى واليسرى.
+وإذا كانت يدك بعيدة عن كل الأمثلة (أكبر من `MATCH_THRESH`) لا يقول شيئاً، حتى لا يخمّن خطأ.
+
+**4) النطق بثبات**
+لا ينطق الكلمة إلا بعد أن تبقى نفس الإشارة **8 إطارات متتالية**، فلا يتكلم مع كل حركة عابرة.
+النطق يتم عبر **gTTS** في خيط (Thread) منفصل حتى لا تتجمّد الكاميرا، والأصوات تُحفظ في `tts_cache` لتعمل أسرع في المرة التالية.
 
 ---
 
-## ▶️ Running the Application
+## ⚙️ التثبيت
+
+> ⚠️ **مهم:** المشروع يستخدم واجهة `mediapipe.solutions` التي أُزيلت من الإصدارات الحديثة لـ MediaPipe،
+> لذلك استخدم **Python 3.10 أو 3.11 أو 3.12** مع الإصدار المحدد في `requirements.txt`.
+
+```bash
+# 1) أنشئ بيئة افتراضية (مستحسن)
+python -m venv venv
+# Windows
+venv\Scripts\activate
+# macOS / Linux
+source venv/bin/activate
+
+# 2) ثبّت المكتبات
+pip install -r requirements.txt
+```
+
+---
+
+## ▶️ التشغيل
 
 ```bash
 python sign_studio.py
 ```
 
-### Controls (within the camera window)
-| Key | Function |
-|-----|----------|
-| `T` | Train a new sign (then select its number from the list) |
-| `C` | Clear all saved signs |
-| `S` | Save signs |
-| `F` | Toggle full-screen mode |
-| `Q` | Exit |
+ستفتح نافذة بملء الشاشة وسيقول البرنامج **"جاهز"**.
 
-### Steps to Train a Sign
-1. Press `T`, then select the sign number from the list.
-2. Hold the sign steady in front of the camera until the progress bar fills up (40 samples).
-3. The sign is saved automatically, and the system returns to recognition mode.
-
-To modify the list of signs, edit the `LABELS` variable at the top of the file.
+> 📷 إذا ظهرت رسالة `Camera not found` غيّر السطر في أعلى الكود:
+> `CAMERA_INDEX = 0` (للكاميرا المدمجة) أو `1` (لكاميرا خارجية).
 
 ---
 
-## 📂 Repository Contents
+## 🎮 أزرار التحكم
 
-- `sign_studio.py` — The complete source code for the system.
-- `شرح_المشروع.pdf` (Project_Explanation.pdf) — A detailed explanation of the concept and how it works. ---
-
-## 🧰 Technologies Used
-
-`Python` · `OpenCV` · `MediaPipe` · `NumPy` · `gTTS` · `Pygame` · `Pillow`
-
----
-
-## 📜 License
-
-This project is licensed under the MIT License — feel free to use, modify, and share it.
+| الزر | الوظيفة |
+|------|---------|
+| `T` | وضع التعليم (اختر بعده رقم الإشارة من القائمة) |
+| `1` – `9` | اختيار الإشارة التي تريد تعليمها |
+| `S` | حفظ الإشارات |
+| `C` | مسح كل الإشارات المحفوظة |
+| `F` | تشغيل/إلغاء ملء الشاشة |
+| `Q` | خروج |
 
 ---
 
-## 🤝 Contributing
+## 🧑‍🏫 كيف تعلّم النظام إشارة جديدة؟
 
-Suggestions and improvements are welcome. Please open an issue or submit a pull request.
+1. اضغط `T`.
+2. اضغط رقم الإشارة من القائمة الظاهرة في اللوحة (مثلاً `1` لـ "مرحبا").
+3. اثبت على الإشارة أمام الكاميرا حتى يمتلئ الشريط **40/40**.
+4. يحفظ تلقائياً ويعود لوضع التعرّف. جرّب الإشارة وسيقولها! 🔊
 
-> Created with passion to bring technology closer to humanity. 🤍
+**نصيحة:** أثناء التعليم حرّك يدك قليلاً (اقترب، ابتعد، أمِل يدك قليلاً) ليتعلّم النظام الإشارة من زوايا مختلفة.
+
+---
+
+## 🛠️ تخصيص الإعدادات
+
+كلها في أعلى ملف `sign_studio.py`:
+
+| المتغيّر | القيمة | ماذا يعني |
+|---------|--------|-----------|
+| `LABELS` | 8 كلمات | أسماء الإشارات (حتى 9) |
+| `CAMERA_INDEX` | `1` | رقم الكاميرا |
+| `K` | `5` | عدد الأمثلة الأقرب التي يصوّت بينها KNN |
+| `MATCH_THRESH` | `0.60` | أقل = أدق وأكثر تشدداً، أكبر = يتعرّف أسهل لكن قد يخطئ |
+| `STABLE_FRAMES` | `8` | عدد الإطارات قبل النطق |
+| `SAMPLES_PER_SIGN` | `40` | عدد الأمثلة لكل إشارة عند التعليم |
+
+---
+
+## 📁 ملفات المشروع
+
+```
+sign-to-speech/
+├── sign_studio.py     # الكود الكامل للمشروع
+├── requirements.txt   # المكتبات المطلوبة
+├── README.md          # هذا الملف
+├── signs.json         # (يُنشأ تلقائياً) الإشارات التي علّمتها
+└── tts_cache/         # (يُنشأ تلقائياً) ملفات الصوت
+```
+
+---
+
+## 🚧 حدود المشروع الحالية
+
+- يتعرّف على **إشارات ثابتة بيد واحدة** فقط (وليس الإشارات المتحركة أو باليدين).
+- النطق عبر gTTS يحتاج **اتصالاً بالإنترنت** في أول مرة لكل كلمة.
+- لغة الإشارة الحقيقية أغنى بكثير (حركة، تعابير وجه، يدان)، وهذا المشروع خطوة تعليمية أولى.
+
+## 💡 أفكار للتطوير
+
+- دعم **الإشارات المتحركة** باستخدام نموذج تسلسلي (LSTM / Transformer).
+- دعم **اليدين** معاً.
+- تكوين **جُمل كاملة** من عدة إشارات.
+- نطق **بدون إنترنت** (مثلاً pyttsx3 أو نموذج TTS محلي).
+- تطبيق جوال.
+
+---
+
+## 🤝 ساهم
+
+الأفكار والتحسينات مرحّب بها. افتح Issue أو Pull Request.
+وإذا أفادك المشروع لا تنسَ ⭐ للمستودع ومتابعة الصفحة على إنستقرام لمشاريع ذكاء اصطناعي جديدة.
+
+</div>
+
+---
+
+## English summary
+
+**Sign ➜ Speech Studio** is a small, open-source Python app that recognizes static hand signs from a webcam and speaks them aloud in Arabic.
+
+- **Hand tracking:** MediaPipe Hands, 21 landmarks per frame
+- **Features:** landmarks normalized relative to the wrist and hand size, so position and distance don't matter
+- **Classifier:** K-nearest neighbours (K=5) over 40 recorded samples per sign, with mirror matching so it works for either hand
+- **Speech:** gTTS played through pygame on a background thread, with a local cache
+- **UI:** OpenCV window with an Arabic side panel (arabic_reshaper + python-bidi)
+
+```bash
+pip install -r requirements.txt   # Python 3.10 – 3.12
+python sign_studio.py             # T = teach, 1-9 = pick sign, S = save, C = clear, F = fullscreen, Q = quit
+```
